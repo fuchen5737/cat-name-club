@@ -99,6 +99,10 @@ function selectedValue(name, fallback) {
   return catForm?.querySelector(`input[name="${name}"]:checked`)?.value || fallback;
 }
 
+function track(name, params) {
+  if (typeof window.trackEvent === "function") window.trackEvent(name, params);
+}
+
 function updateShortlist() {
   if (!shortlistChips || !shortlistCount) return;
   const names = [...state.favorites];
@@ -151,6 +155,7 @@ function toggleFavorite(name) {
   updateShortlist();
   syncStars();
   showToast(state.favorites.has(name) ? `${name} saved to shortlist.` : `${name} removed from shortlist.`);
+  track("cat_name_favorited", { saved: state.favorites.has(name), favorites: state.favorites.size });
 }
 
 function copyButtonFor(name) {
@@ -172,6 +177,7 @@ function copyButtonFor(name) {
       copy.innerHTML = ICON_COPY;
     }, 1100);
     showToast(`${name} copied.`);
+    track("cat_name_copied", { source: "card" });
   });
   return copy;
 }
@@ -233,11 +239,13 @@ function renderCats(results, { scroll = true } = {}) {
   }
 }
 
-function runCat({ scroll = true } = {}) {
+function runCat({ scroll = true, trigger = "form" } = {}) {
   const gender = selectedValue("gender", "any");
   const style = selectedValue("style", "cute");
   state.seed = (state.seed + 0x9e3779b9) >>> 0;
-  renderCats(generateNames({ gender, style, count: 24 }, state.seed), { scroll });
+  const results = generateNames({ gender, style, count: 24 }, state.seed);
+  renderCats(results, { scroll });
+  track("cat_names_generated", { gender, style, names: results.length, trigger });
 }
 
 catForm?.addEventListener("submit", (event) => {
@@ -254,7 +262,7 @@ catForm?.addEventListener("submit", (event) => {
 });
 
 newNamesButton?.addEventListener("click", () => {
-  runCat({ scroll: false });
+  runCat({ scroll: false, trigger: "new" });
   showToast("New names pulled.");
 });
 
@@ -262,6 +270,7 @@ copyAllButton?.addEventListener("click", async () => {
   if (!state.results.length) return;
   const ok = await copyText(state.results.map((cat) => cat.name).join(", "));
   showToast(ok ? `All ${state.results.length} names copied.` : "Couldn’t copy — try selecting the names.");
+  if (ok) track("cat_names_copied_all", { count: state.results.length });
 });
 
 shortlistCopy?.addEventListener("click", async () => {
@@ -269,6 +278,7 @@ shortlistCopy?.addEventListener("click", async () => {
   if (!names.length) return;
   const ok = await copyText(names.join(", "));
   showToast(ok ? `Shortlist copied: ${names.length} name${names.length === 1 ? "" : "s"}.` : "Couldn’t copy — try selecting the names.");
+  if (ok) track("cat_shortlist_copied", { count: names.length });
 });
 
 fillExample?.addEventListener("click", () => {
@@ -276,7 +286,7 @@ fillExample?.addEventListener("click", () => {
   const cute = catForm?.querySelector('input[name="style"][value="cute"]');
   if (girl) girl.checked = true;
   if (cute) cute.checked = true;
-  runCat();
+  runCat({ trigger: "example" });
 });
 
 function makeWarriorCard(name, index, clan) {
@@ -318,11 +328,12 @@ function renderWarriors(names, { scroll = true } = {}) {
   }
 }
 
-function runWarrior({ scroll = true } = {}) {
+function runWarrior({ scroll = true, trigger = "form" } = {}) {
   const clan = warriorForm?.querySelector("#clan")?.value || "ThunderClan";
   state.warriorClan = clan;
   state.warriorSeed = (state.warriorSeed + 0x9e3779b9) >>> 0;
   renderWarriors(generateWarriorNames(state.warriorSeed, 24), { scroll });
+  track("warrior_names_generated", { clan, names: 24, trigger });
 }
 
 warriorForm?.addEventListener("submit", (event) => {
@@ -339,7 +350,7 @@ warriorForm?.addEventListener("submit", (event) => {
 });
 
 warriorNew?.addEventListener("click", () => {
-  runWarrior({ scroll: false });
+  runWarrior({ scroll: false, trigger: "new" });
   showToast("New warrior names pulled.");
 });
 
@@ -347,6 +358,7 @@ warriorCopy?.addEventListener("click", async () => {
   if (!state.warriorResults.length) return;
   const ok = await copyText(state.warriorResults.join(", "));
   showToast(ok ? `All ${state.warriorResults.length} warrior names copied.` : "Couldn’t copy — try selecting the names.");
+  if (ok) track("warrior_names_copied", { count: state.warriorResults.length });
 });
 
 state.favorites = loadFavorites();
